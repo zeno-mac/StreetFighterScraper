@@ -1,0 +1,1 @@
+Basic webscraper of battlelog from streetfighter.com
