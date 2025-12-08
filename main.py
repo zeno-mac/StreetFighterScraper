@@ -35,11 +35,11 @@ def errorLog(string):
     quit()
 
 def translateInput(name):
-    classic = "[t]クラシック"
-    modern = "[t]モダン"
-    if name == classic:
+    classic = "0"
+    modern = "1"
+    if name == 1:
         return "Classic"
-    elif name == modern:
+    elif name == 0:
         return "Modern"
     else:
         raise Exception(f"{name} not in found in input types")
@@ -76,11 +76,11 @@ def fillMatch(match, my_info, opp_info, side):
         "side": side,
         "uploaded_at" :match["uploaded_at"],
         "date": datetime.fromtimestamp(match["uploaded_at"]).strftime("%Y-%m-%d %H:%M:%S"),
-        "mode": match["replay_battle_type_name"],
+        "mode": match["replay_battle_type"],
         "res": checkWin(my_info["round_results"]),
         "my_character":my_info["character_name"],
         "my_MR":my_info["master_rating"],
-        "my_input_type":translateInput(my_info["battle_input_type_name"]),
+        "my_input_type":translateInput(my_info["battle_input_type"]),
         "my_LP":my_info["league_point"],
         "my_ranking":my_info["master_rating_ranking"],
         "my_round1":my_round[0],
@@ -108,11 +108,11 @@ def parseMatch(match):
         player1_id = str(match["player1_info"]["player"]["short_id"])
         player2_id = str(match["player2_info"]["player"]["short_id"])
         if (player1_id==USER_ID):
-            side = "Right side"
+            side = "Left side"
             my_info  = match["player1_info"]
             opp_info = match["player2_info"]
         elif (player2_id==USER_ID):
-            side = "Left side"
+            side = "Right side"
             my_info = match["player2_info"]
             opp_info = match["player1_info"]
         else:
@@ -184,6 +184,7 @@ for arg in args:
         modes.append(arg)
     else:
         errorLog(f"Error: {arg} not found in the modes")
+        
 log(f"Starting the scraping of the modes:{modes}")    
 
 battlelog = []
