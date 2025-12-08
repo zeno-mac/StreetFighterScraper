@@ -4,6 +4,7 @@ import json
 from dotenv import load_dotenv
 import os
 from datetime import datetime
+import sys
 
 
 load_dotenv()
@@ -19,8 +20,8 @@ archiveEnabled = False
 mode_code = {
     "ranked" : "/rank",
     "casual" : "/casual",
-    "custom_room" : "/custom",
-    "battle_hub" : "/hub",
+    "custom" : "/custom",
+    "hub" : "/hub",
     "all" : ""
 }
 
@@ -37,9 +38,9 @@ def translateInput(name):
     classic = "[t]クラシック"
     modern = "[t]モダン"
     if name == classic:
-        return "classic"
+        return "Classic"
     elif name == modern:
-        return "modern"
+        return "Modern"
     else:
         raise Exception(f"{name} not in found in input types")
 
@@ -66,60 +67,37 @@ def checkWin(results):
         
 def fillMatch(match, my_info, opp_info, side):
     my_round = translateResult(my_info["round_results"])
-    opp_round = translateResult(my_info["round_results"])
+    opp_round = translateResult(opp_info["round_results"])
     if len(my_round) == 2:
         my_round.append("")
         opp_round.append("")
     m ={
-                "id": match["replay_id"],
-                "res": checkWin(my_info["round_results"]),
-                "uploaded_at" :match["uploaded_at"],"side": side,
-                "id": match["replay_id"],
-                "res": checkWin(my_info["round_results"]),
-                "uploaded_at" :match["uploaded_at"],
-                "date": datetime.fromtimestamp(match["uploaded_at"]).strftime("%Y-%m-%d %H:%M:%S"),
-                "mode": match["replay_battle_type_name"],
-                "my_character":my_info["character_name"],
-                "my_MR":my_info["master_rating"],
-                "my_input_type":translateInput(my_info["battle_input_type_name"]),
-                "my_LP":my_info["league_point"],
-                "my_ranking":my_info["master_rating_ranking"],
-                "my_round1":my_round[0],
-                "my_round2":my_round[1],
-                "my_round3":my_round[2],
-                "opp_name": opp_info["player"]["fighter_id"],
-                "opp_id": opp_info["player"]["short_id"],
-                "opp_platflorm": opp_info["player"]["platform_name"],
-                "opp_round1":opp_round[0],
-                "opp_round2":opp_round[1],
-                "opp_round3":opp_round[2],
-                "opp_character":opp_info["character_name"],
-                "opp_MR":opp_info["master_rating"],
-                "opp_input_type":translateInput(opp_info["battle_input_type_name"]),
-                "opp_LP":opp_info["league_point"],
-                "opp_ranking":opp_info["master_rating_ranking"],
-                "date": datetime.fromtimestamp(match["uploaded_at"]).strftime("%Y-%m-%d %H:%M:%S"),
-                "side": side,
-                "my_character":my_info["character_name"],
-                "my_MR":my_info["master_rating"],
-                "my_input_type":translateInput(my_info["battle_input_type_name"]),
-                "my_LP":my_info["league_point"],
-                "my_ranking":my_info["master_rating_ranking"],
-                "my_round1":my_round[0],
-                "my_round2":my_round[1],
-                "my_round3":my_round[2],
-                "opp_name": opp_info["player"]["fighter_id"],
-                "opp_id": opp_info["player"]["short_id"],
-                "opp_platflorm": opp_info["player"]["platform_name"],
-                "opp_round1":opp_round[0],
-                "opp_round2":opp_round[1],
-                "opp_round3":opp_round[2],
-                "opp_character":opp_info["character_name"],
-                "opp_MR":opp_info["master_rating"],
-                "opp_input_type":translateInput(opp_info["battle_input_type_name"]),
-                "opp_LP":opp_info["league_point"],
-                "opp_ranking":opp_info["master_rating_ranking"],
-    }
+        "id": match["replay_id"],
+        "side": side,
+        "uploaded_at" :match["uploaded_at"],
+        "date": datetime.fromtimestamp(match["uploaded_at"]).strftime("%Y-%m-%d %H:%M:%S"),
+        "mode": match["replay_battle_type_name"],
+        "res": checkWin(my_info["round_results"]),
+        "my_character":my_info["character_name"],
+        "my_MR":my_info["master_rating"],
+        "my_input_type":translateInput(my_info["battle_input_type_name"]),
+        "my_LP":my_info["league_point"],
+        "my_ranking":my_info["master_rating_ranking"],
+        "my_round1":my_round[0],
+        "my_round2":my_round[1],
+        "my_round3":my_round[2],
+        "opp_name": opp_info["player"]["fighter_id"],
+        "opp_id": opp_info["player"]["short_id"],
+        "opp_platform": opp_info["player"]["platform_name"],
+        "opp_round1":opp_round[0],
+        "opp_round2":opp_round[1],
+        "opp_round3":opp_round[2],
+        "opp_character":opp_info["character_name"],
+        "opp_MR":opp_info["master_rating"],
+        "opp_input_type":translateInput(opp_info["battle_input_type_name"]),
+        "opp_LP":opp_info["league_point"],
+        "opp_ranking":opp_info["master_rating_ranking"],
+                }
     return m
 
 def parseMatch(match):
@@ -134,7 +112,7 @@ def parseMatch(match):
             my_info  = match["player1_info"]
             opp_info = match["player2_info"]
         elif (player2_id==USER_ID):
-            side = "Left Side"
+            side = "Left side"
             my_info = match["player2_info"]
             opp_info = match["player1_info"]
         else:
@@ -161,8 +139,8 @@ def archive(battlelog):
     except (FileNotFoundError, json.JSONDecodeError):
         existing = []
 
-    existing_keys = {item.get('uploaded_at') for item in existing if 'uploaded_at' in item}
-    new_items = [item for item in battlelog if item.get('uploaded_at') not in existing_keys]
+    existing_keys = {item.get('replay_id') for item in existing if 'replay_id' in item}
+    new_items = [item for item in battlelog if item.get('replay_id') not in existing_keys]
     if not new_items:
         return
 
@@ -175,7 +153,7 @@ def scrapeMode(mode):
     battlelog = []
     for i in range(10):
         url = "https://www.streetfighter.com/6/buckler/it/profile/"+USER_ID+"/battlelog"+mode_code[mode]+"?page="+str(i+1)
-        log(f"Sending http request n{i+1} to {url}...")
+        log(f"Sending http request to {url}...")
         contents = requests.get(url,headers=headers,cookies=cookies)
         if(contents.status_code == 200):
             log(f'Successful: status code {contents.status_code}')
@@ -194,19 +172,36 @@ def scrapeMode(mode):
             log("Found the end of content, stopped the scraping process early")
             break
     return battlelog
-    
-matches = []
-battlelog = scrapeMode("ranked")
+      
+
+modes = []
+args = sys.argv[1:]
+
+if not args:
+    modes = ["all"]
+for arg in args:
+    if arg in mode_code:
+        modes.append(arg)
+    else:
+        errorLog(f"Error: {arg} not found in the modes")
+log(f"Starting the scraping of the modes:{modes}")    
+
+battlelog = []
+
+for mode in modes:
+    partialLog = scrapeMode(mode)
+    battlelog.extend(partialLog)
 
 archive(battlelog)
     
+log("Starting the parsing process...")
+matches = []
 for match in battlelog:
     cleanedMatch = parseMatch(match)
     matches.append(cleanedMatch)
-
+log("Successful parsing")
 
 matches = sorted(matches, key=lambda x: x["uploaded_at"])
-#open("cleanedlog3.json", "w", encoding="utf-8").write(json.dumps(matches, ensure_ascii=False, indent=2))
 
 
 
