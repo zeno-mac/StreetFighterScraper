@@ -15,6 +15,8 @@ APP_SCRIPT_URL = os.getenv("APP_SCRIPT_URL")
 cookies = {'buckler_id' : BUCKLER_ID}
 headers = {'User-Agent': USER_AGENT}
 logEnabled = True
+
+
 def log(string):
     if logEnabled == True:
         print(string)
@@ -22,19 +24,6 @@ def log(string):
 def errorLog(string):
     print(string)
     quit()
-    
-def fillPlayerInfo(player):
-    required = ["character_name", "master_rating", "battle_input_type_name"]
-    missing = [k for k in required if k not in player]
-    if missing:
-        raise KeyError(f"Missing keys in player info: {missing}")
-    info = {
-        "character":player["character_name"],
-        "MR":player["master_rating"],
-        "input_type":translateInput(player["battle_input_type_name"]),
-        } 
- 
-    return info
     
 
 def translateInput(name):
@@ -46,13 +35,92 @@ def translateInput(name):
         return "modern"
     else:
         raise Exception(f"{name} not in found in input types")
-    
+
+def translateResult(results):
+    table = {
+    0 : "L",
+    1 : "W",
+    2 : "C",
+    3 : "T(?)",
+    4 : "D",
+    5 : "OD",
+    6 : "SA",
+    7 : "CA",
+    8 : "P"
+    }
+    res = []
+    for i in results:
+        r = table.get(i,"")
+        res.append(r)
+    return res
+
+def checkWin(results):
+    return "L" if (results.count(0) == 2) else "W"
+        
+def fillMatch(match, my_info, opp_info, side):
+    my_round = translateResult(my_info["round_results"])
+    opp_round = translateResult(my_info["round_results"])
+    if len(my_round) == 2:
+        my_round.append("")
+        opp_round.append("")
+    m ={
+                "id": match["replay_id"],
+                "res": checkWin(my_info["round_results"]),
+                "uploaded_at" :match["uploaded_at"],"side": side,
+                "id": match["replay_id"],
+                "res": checkWin(my_info["round_results"]),
+                "uploaded_at" :match["uploaded_at"],
+                "date": datetime.fromtimestamp(match["uploaded_at"]).strftime("%Y-%m-%d %H:%M:%S"),
+                "mode": match["replay_battle_type_name"],
+                "my_character":my_info["character_name"],
+                "my_MR":my_info["master_rating"],
+                "my_input_type":translateInput(my_info["battle_input_type_name"]),
+                "my_LP":my_info["league_point"],
+                "my_ranking":my_info["master_rating_ranking"],
+                "my_round1":my_round[0],
+                "my_round2":my_round[1],
+                "my_round3":my_round[2],
+                "opp_name": opp_info["player"]["fighter_id"],
+                "opp_id": opp_info["player"]["short_id"],
+                "opp_platflorm": opp_info["player"]["platform_name"],
+                "opp_round1":opp_round[0],
+                "opp_round2":opp_round[1],
+                "opp_round3":opp_round[2],
+                "opp_character":opp_info["character_name"],
+                "opp_MR":opp_info["master_rating"],
+                "opp_input_type":translateInput(opp_info["battle_input_type_name"]),
+                "opp_LP":opp_info["league_point"],
+                "opp_ranking":opp_info["master_rating_ranking"],
+                "date": datetime.fromtimestamp(match["uploaded_at"]).strftime("%Y-%m-%d %H:%M:%S"),
+                "side": side,
+                "my_character":my_info["character_name"],
+                "my_MR":my_info["master_rating"],
+                "my_input_type":translateInput(my_info["battle_input_type_name"]),
+                "my_LP":my_info["league_point"],
+                "my_ranking":my_info["master_rating_ranking"],
+                "my_round1":my_round[0],
+                "my_round2":my_round[1],
+                "my_round3":my_round[2],
+                "opp_name": opp_info["player"]["fighter_id"],
+                "opp_id": opp_info["player"]["short_id"],
+                "opp_platflorm": opp_info["player"]["platform_name"],
+                "opp_round1":opp_round[0],
+                "opp_round2":opp_round[1],
+                "opp_round3":opp_round[2],
+                "opp_character":opp_info["character_name"],
+                "opp_MR":opp_info["master_rating"],
+                "opp_input_type":translateInput(opp_info["battle_input_type_name"]),
+                "opp_LP":opp_info["league_point"],
+                "opp_ranking":opp_info["master_rating_ranking"],
+    }
+    return m
+
 matches = []
 for i in range(10):
-    log(f"Sending http request n°{i+1} to Capcom...")
+    log(f"Sending http request n{i+1} to Capcom...")
     contents = requests.get("https://www.streetfighter.com/6/buckler/it/profile/"+USER_ID+"/battlelog/rank?page="+str(i+1),headers=headers,cookies=cookies)
     if(contents.status_code != 200):
-        errorLog(f'Error during request n°{i+1}: status code {contents.status_code}')
+        errorLog(f'Error during request n{i+1}: status code {contents.status_code}')
         
     else:
         log(f'Successful: status code {contents.status_code}')
@@ -74,43 +142,34 @@ for i in range(10):
         if "replay_id" not in match or "uploaded_at" not in match:
                 errorLog(f"Missing replay_id or uploaded_at in match: {match.get('replay_id')}")
         try:
+            side = ""
             player1_id = str(match["player1_info"]["player"]["short_id"])
             player2_id = str(match["player2_info"]["player"]["short_id"])
             if (player1_id==USER_ID):
+                side = "Right side"
                 my_info  = match["player1_info"]
-                opponent_info = match["player2_info"]
+                opp_info = match["player2_info"]
             elif (player2_id==USER_ID):
+                side = "Left Side"
                 my_info = match["player2_info"]
-                opponent_info = match["player1_info"]
+                opp_info = match["player1_info"]
             else:
                 raise KeyError(f"User_id ({USER_ID} not found, player1_id = {player1_id}, player2_id = {player2_id}")
             
-            required = ["character_name", "master_rating", "battle_input_type_name"]
+            required = ["character_name", "master_rating", "battle_input_type_name","league_point","master_rating_ranking"]
             missing = [k for k in required if k not in my_info]
             if missing:
                 raise KeyError(f"Missing keys in player info: {missing}")
-            parsedMatch={
-                "id": match["replay_id"],
-                "uploaded_at" :match["uploaded_at"],
-                "date": datetime.fromtimestamp(match["uploaded_at"]).strftime("%Y-%m-%d %H:%M:%S"),
-                "my_character":my_info["character_name"],
-                "my_MR":my_info["master_rating"],
-                "my_input_type":translateInput(my_info["battle_input_type_name"]),
-                "opp_character":opponent_info["character_name"],
-                "opp_MR":opponent_info["master_rating"],
-                "opp_input_type":translateInput(opponent_info["battle_input_type_name"]),
-            }
+            cleanedMatch = fillMatch(match, my_info, opp_info, side)
         except  Exception as e:
             errorLog(f"Error occurred during battlelog cleaning: {e}")
-        matches.append(parsedMatch)
-            
-            
+        matches.append(cleanedMatch)  
 matches.reverse()
 ##open("cleanedlog.json", "w", encoding="utf-8").write(json.dumps(matches, ensure_ascii=False, indent=2))
-r = requests.post(APP_SCRIPT_URL, json=matches)
 log("Starting http request to Google App Scripts")
+r = requests.post(APP_SCRIPT_URL, json=matches)
 if r.status_code == 200:
-    log(f"Successful: status code {r.status_code}")
+    log(f"Successful: status code {r.text}")
 else:
     errorLog(f"Error occurred during Google App Scripts request: status code {r.status_code}\nError: {r.text}")
     
