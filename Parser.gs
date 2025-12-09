@@ -9,64 +9,80 @@ function setScriptProperties() {
   const props = PropertiesService.getScriptProperties();
   props.setProperties({
     SHEET_NAME: 'Data'
-  }, true); 
+  }, true);
 }
 
+function makeHeader(sheet, object) {
+  let newKeys = false
+  let headers = {
+    arr: [],
+    safeGet(name) {
+      let index = this.arr.indexOf(name);
+      if (index !== -1) {
+        return index;
+      }
+      else {
+        let l = this.arr.length
+        this.arr.push(name)
+        newKeys = true
+        return l
+      }
+    },
+    init(names) {
+      this.arr = names
+    }
 
-function fillContent(data){
+  }
+
+  let col = Math.max(1, sheet.getLastColumn());
+  let values = sheet.getRange(1, 1, 1, col).getValues()[0]
+
+  headers.init(values)
+
+  for (key in object) {
+    headers.safeGet(key)
+  }
+  if (newKeys) {
+    sheet.getRange(1, 1, 1, headers.arr.length).setValues([headers.arr])
+  }
+  return headers
+
+}
+function fillContent(data) {
   const config = loadConfigFromProperties()
   const content = JSON.parse(data)
   const SpreadSheet_ID = SpreadsheetApp.getActiveSpreadsheet()
   let sheet = SpreadSheet_ID.getSheetByName(config.sheetName)
-    pos = {
-    safeGet(name) {
-      if (name in this) {
-        console.log("Present: "+ name+", coord: "+String(this[name]))
-        return this[name]
-      }
-      else {
-        let l = sheet.getLastColumn() + 1
-        sheet.getRange(1, l).setValue(name)
-        pos[name] = l
 
-        console.log("Not present: "+name+", coord: " +String(l))
-        return l
-      }
-    }
-  }
-  let col =  sheet.getLastColumn()
-  col = Math.max(1,col)
-  let values = sheet.getRange(1, 1, 1, col).getValues()[0]
-  for (i = 0; i < values.length; i++) {
-    pos[values[i]] = i+1
-  }
 
-  let row = sheet.getLastRow()
-  let keys = []
-  console.log(row)
-  if (row > 1){
-    keys = sheet.getRange(2,1,row, col).getValues()
-  }
+  headers = makeHeader(sheet, content[0])
+  let row = Math.max(2, sheet.getLastRow() - 1)
+  let keys = sheet.getRange(2, headers.safeGet("id") + 1, row, 1).getValues()
+  console.log(keys)
   str = ""
   let existingIds = new Set()
+  let rowsToAdd = new Array()
   row = Math.max(2, row + 1)
-  for (i=0; i<keys.length; i++){
-    //console.log(keys[i][0])
+  for (i = 0; i < keys.length; i++) {
     existingIds.add(keys[i][0])
   }
   content.forEach((match) => {
     if (existingIds.has(match["id"])) {
       return;
     }
+    let newRow = new Array(headers.arr.length).fill("")
     for (k in match) {
-      col = pos.safeGet(k)
-      sheet.getRange(row, col).setValue(match[k])
+      col = headers.safeGet(k)
+      newRow[col] = match[k]
       existingIds.add(match["id"])
     }
-    row++
-
-  })}
-
+    rowsToAdd.push(newRow)
+  })
+  let lastRow = sheet.getLastRow()
+  if (rowsToAdd.length >= 1) {
+    sheet.getRange(lastRow + 1, 1, rowsToAdd.length, headers.arr.length).setValues(rowsToAdd)
+  }
+}
 
 function doPost(e) {
   fillContent(e.postData.contents)
