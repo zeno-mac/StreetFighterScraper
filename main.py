@@ -15,8 +15,8 @@ USER_ID = os.getenv("USER_ID")
 APP_SCRIPT_URL = os.getenv("APP_SCRIPT_URL")
 cookies = {'buckler_id' : BUCKLER_ID}
 headers = {'User-Agent': USER_AGENT}
-logEnabled = True
-archiveEnabled = False
+log_enabled = True
+archive_enabled = False
 mode_code = {
     "ranked" : "/rank",
     "casual" : "/casual",
@@ -27,7 +27,7 @@ mode_code = {
 
 
 def log(string):
-    if logEnabled == True:
+    if log_enabled == True:
         print(string)
         
 def errorLog(string):
@@ -35,8 +35,6 @@ def errorLog(string):
     quit()
 
 def translateInput(name):
-    classic = "0"
-    modern = "1"
     if name == 1:
         return "Classic"
     elif name == 0:
@@ -76,7 +74,7 @@ def fillMatch(match, my_info, opp_info, side):
         "side": side,
         "uploaded_at" :match["uploaded_at"],
         "date": datetime.fromtimestamp(match["uploaded_at"]).strftime("%Y-%m-%d %H:%M:%S"),
-        "mode": match["replay_battle_type"],
+        "mode": match["replay_battle_type_name"],
         "res": checkWin(my_info["round_results"]),
         "my_character":my_info["character_name"],
         "my_MR":my_info["master_rating"],
@@ -94,7 +92,7 @@ def fillMatch(match, my_info, opp_info, side):
         "opp_round3":opp_round[2],
         "opp_character":opp_info["character_name"],
         "opp_MR":opp_info["master_rating"],
-        "opp_input_type":translateInput(opp_info["battle_input_type_name"]),
+        "opp_input_type":translateInput(opp_info["battle_input_type"]),
         "opp_LP":opp_info["league_point"],
         "opp_ranking":opp_info["master_rating_ranking"],
                 }
@@ -128,7 +126,7 @@ def parseMatch(match):
     return cleanedMatch
     
 def archive(battlelog):
-    if not archiveEnabled:
+    if not archive_enabled:
         return
     path = 'log.json'
     try:
@@ -209,7 +207,10 @@ matches = sorted(matches, key=lambda x: x["uploaded_at"])
 log("Starting http request to Google App Scripts")
 r = requests.post(APP_SCRIPT_URL, json=matches)
 if r.status_code == 200:
-    log(f"Successful: status code {r.text}")
+    if "GAS" in r.text:
+        errorLog(f"Script returned an error: {r.text}")
+    else:
+        log(f"Successful: {r.text}")
 else:
     errorLog(f"Error occurred during Google App Scripts request: status code {r.status_code}\nError: {r.text}")
     

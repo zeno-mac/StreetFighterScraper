@@ -29,6 +29,10 @@ function makeHeader(sheet, object) {
       }
     },
     init(names) {
+      let isBlank = (names.length == 1 && names[0] == [""])
+      if (isBlank) {
+        names = []
+      }
       this.arr = names
     }
 
@@ -53,16 +57,14 @@ function fillContent(data) {
   const content = JSON.parse(data)
   const SpreadSheet_ID = SpreadsheetApp.getActiveSpreadsheet()
   let sheet = SpreadSheet_ID.getSheetByName(config.sheetName)
-
-
   headers = makeHeader(sheet, content[0])
   let row = Math.max(2, sheet.getLastRow() - 1)
   let keys = sheet.getRange(2, headers.safeGet("id") + 1, row, 1).getValues()
-  console.log(keys)
   str = ""
   let existingIds = new Set()
   let rowsToAdd = new Array()
   row = Math.max(2, row + 1)
+  let startingHeaders = headers.arr.length
   for (i = 0; i < keys.length; i++) {
     existingIds.add(keys[i][0])
   }
@@ -79,14 +81,26 @@ function fillContent(data) {
     rowsToAdd.push(newRow)
   })
   let lastRow = sheet.getLastRow()
+  if (startingHeaders != headers.arr.length) {
+    for (let i = 0; i < rowsToAdd.length; i++) {
+      while (rowsToAdd[i].length < headers.arr.length) {
+        rowsToAdd[i].push("")
+      }
+    }
+  }
   if (rowsToAdd.length >= 1) {
     sheet.getRange(lastRow + 1, 1, rowsToAdd.length, headers.arr.length).setValues(rowsToAdd)
   }
+  let sortColIndex = headers.arr.indexOf("uploaded_at") + 1;
+  sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).sort({ column: sortColIndex, ascending: true });
 }
 
 function doPost(e) {
-  fillContent(e.postData.contents)
-  return ContentService.createTextOutput("ok").setMimeType(ContentService.MimeType.TEXT);
+  try {
+    fillContent(e.postData.contents)
+    return ContentService.createTextOutput("ok").setMimeType(ContentService.MimeType.TEXT);
+  }
+  catch (error) {
+    return ContentService.createTextOutput("GAS Error: "+error.message).setMimeType(ContentService.MimeType.TEXT);
+  }
 }
-
-
