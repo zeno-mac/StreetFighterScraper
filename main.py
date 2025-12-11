@@ -5,7 +5,9 @@ from dotenv import load_dotenv
 import os
 from datetime import datetime
 import sys
-
+from concurrent.futures import ThreadPoolExecutor
+import itertools
+import logging
 
 load_dotenv()
 
@@ -147,30 +149,42 @@ def archive(battlelog):
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(existing, f, ensure_ascii=False, indent=2)
 
+def send_sf_request(mode, index):
+    url = "https://www.streetfighter.com/6/buckler/it/profile/"+USER_ID+"/battlelog"+mode_code[mode]+"?page="+str(index)
+    contents = requests.get(url,headers=headers,cookies=cookies)
+    if(contents.status_code != 200):
+        raise KeyError(f'Error during request to {url} status code {contents.status_code}')
+    soup = BeautifulSoup(contents.content, "html.parser")
+    next_data = soup.find("script" , id = "__NEXT_DATA__")
+    parsed = json.loads(next_data.string)
+    partialBattlelog = parsed["props"]["pageProps"]["replay_list"]
+    return partialBattlelog
+     
+def send_gas_request(data):
+    log("Starting http request to Google App Scripts")
+    r = requests.post(APP_SCRIPT_URL, json=data)
+    if r.status_code == 200:
+        if "GAS" in r.text:
+            errorLog(f"Script returned an error: {r.text}")
+        else:
+            log(f"Successful: {r.text}")
+    else:
+        errorLog(f"Error occurred during Google App Scripts request: status code {r.status_code}\nError: {r.text}")
+      
 def scrapeMode(mode):
     battlelog = []
-    for i in range(10):
-        url = "https://www.streetfighter.com/6/buckler/it/profile/"+USER_ID+"/battlelog"+mode_code[mode]+"?page="+str(i+1)
-        log(f"Sending http request to {url}...")
-        contents = requests.get(url,headers=headers,cookies=cookies)
-        if(contents.status_code == 200):
-            log(f'Successful: status code {contents.status_code}')
-        else:
-            errorLog(f'Error during request n{i+1}: status code {contents.status_code}')
-        log("Parsing html content...")
-        try:
-            soup = BeautifulSoup(contents.content, "html.parser")
-            next_data = soup.find("script" , id = "__NEXT_DATA__")
-            parsed = json.loads(next_data.string)
-            partialBattlelog = parsed["props"]["pageProps"]["replay_list"]
-        except Exception as e:
-            errorLog(f"Error occurred during html parsing: {e}")
-        battlelog.extend(partialBattlelog)
-        if len(partialBattlelog) != 10:
-            log("Found the end of content, stopped the scraping process early")
-            break
+    with ThreadPoolExecutor(max_workers=10) as ex:
+        results = list(ex.map(send_sf_request,itertools.repeat(mode), range(1, 11)))
+    for bt in results:
+        battlelog.extend(bt)
     return battlelog
-      
+
+def scrapeLog(battlelog):    
+    matches = []
+    for match in battlelog:
+        cleanedMatch = parseMatch(match)
+        matches.append(cleanedMatch)
+    return matches
 
 modes = []
 args = sys.argv[1:]
@@ -186,33 +200,19 @@ for arg in args:
 log(f"Starting the scraping of the modes:{modes}")    
 
 battlelog = []
-
 for mode in modes:
-    partialLog = scrapeMode(mode)
-    battlelog.extend(partialLog)
-
+    bt = scrapeMode(mode)
+    battlelog.extend(bt)
+    
+log(f"Successful scraping")    
 archive(battlelog)
-    
+
 log("Starting the parsing process...")
-matches = []
-for match in battlelog:
-    cleanedMatch = parseMatch(match)
-    matches.append(cleanedMatch)
+parsed_log= scrapeLog(battlelog)
 log("Successful parsing")
-
-matches = sorted(matches, key=lambda x: x["uploaded_at"])
-
-
-
-log("Starting http request to Google App Scripts")
-r = requests.post(APP_SCRIPT_URL, json=matches)
-if r.status_code == 200:
-    if "GAS" in r.text:
-        errorLog(f"Script returned an error: {r.text}")
-    else:
-        log(f"Successful: {r.text}")
-else:
-    errorLog(f"Error occurred during Google App Scripts request: status code {r.status_code}\nError: {r.text}")
     
 
-    
+matches = sorted(parsed_log, key=lambda x: x["uploaded_at"])
+
+send_gas_request(matches)
+ 
