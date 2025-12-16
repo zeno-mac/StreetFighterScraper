@@ -8,33 +8,25 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 import itertools
 import logging
-
-load_dotenv()
-
-USER_AGENT = os.getenv("USER_AGENT")
-BUCKLER_ID = os.getenv("BUCKLER_ID")
-USER_ID = os.getenv("USER_ID")
-APP_SCRIPT_URL = os.getenv("APP_SCRIPT_URL")
-cookies = {'buckler_id' : BUCKLER_ID}
-headers = {'User-Agent': USER_AGENT}
-log_enabled = True
-archive_enabled = False
-mode_code = {
-    "ranked" : "/rank",
-    "casual" : "/casual",
-    "custom" : "/custom",
-    "hub" : "/hub",
-    "all" : ""
-}
+from dataclasses import dataclass
 
 
-def log(string):
-    if log_enabled == True:
-        print(string)
-        
-def errorLog(string):
-    print(string)
-    quit()
+
+@dataclass(frozen=True)
+class Config:
+    user_id: str
+    app_script_url: str
+    headers: dict
+    cookies: dict
+    mode_code: dict[str, str]
+    max_workers: int = 10
+    debug: bool = False
+    is_archive_enabled: bool = False
+    
+
+logger = logging.getLogger(__name__)
+
+
 
 def translateInput(name):
     if name == 1:
@@ -100,23 +92,23 @@ def fillMatch(match, my_info, opp_info, side):
                 }
     return m
 
-def parseMatch(match):
+def parseMatch(cfg : Config, match):
     if "replay_id" not in match or "uploaded_at" not in match:
-            errorLog(f"Missing replay_id or uploaded_at in match: {match.get('replay_id')}")
+            raise KeyError(f"Missing replay_id or uploaded_at in match: {match.get('replay_id')}")
     try:
         side = ""
         player1_id = str(match["player1_info"]["player"]["short_id"])
         player2_id = str(match["player2_info"]["player"]["short_id"])
-        if (player1_id==USER_ID):
+        if (player1_id==cfg.user_id):
             side = "Left side"
             my_info  = match["player1_info"]
             opp_info = match["player2_info"]
-        elif (player2_id==USER_ID):
+        elif (player2_id==cfg.user_id):
             side = "Right side"
             my_info = match["player2_info"]
             opp_info = match["player1_info"]
         else:
-            raise KeyError(f"User_id ({USER_ID} not found, player1_id = {player1_id}, player2_id = {player2_id}")
+            raise KeyError(f"User_id ({cfg.user_id} not found, player1_id = {player1_id}, player2_id = {player2_id}")
         
         required = ["character_name", "master_rating", "battle_input_type_name","league_point","master_rating_ranking"]
         missing = [k for k in required if k not in my_info]
@@ -124,11 +116,11 @@ def parseMatch(match):
             raise KeyError(f"Missing keys in player info: {missing}")
         cleanedMatch = fillMatch(match, my_info, opp_info, side)
     except  Exception as e:
-        errorLog(f"Error occurred during battlelog cleaning: {e}")
+        raise KeyError(f"Error occurred during battlelog cleaning: {e}")
     return cleanedMatch
     
-def archive(battlelog):
-    if not archive_enabled:
+def archive(cfg: Config, battlelog):
+    if not cfg.is_archive_enabled:
         return
     path = 'log.json'
     try:
@@ -149,9 +141,9 @@ def archive(battlelog):
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(existing, f, ensure_ascii=False, indent=2)
 
-def send_sf_request(mode, index):
-    url = "https://www.streetfighter.com/6/buckler/it/profile/"+USER_ID+"/battlelog"+mode_code[mode]+"?page="+str(index)
-    contents = requests.get(url,headers=headers,cookies=cookies)
+def send_sf_request(cfg: Config, mode, index):
+    url = "https://www.streetfighter.com/6/buckler/it/profile/"+cfg.user_id+"/battlelog"+cfg.mode_code[mode]+"?page="+str(index)
+    contents = requests.get(url,headers=cfg.headers,cookies=cfg.cookies)
     if(contents.status_code != 200):
         raise KeyError(f'Error during request to {url} status code {contents.status_code}')
     soup = BeautifulSoup(contents.content, "html.parser")
@@ -160,59 +152,96 @@ def send_sf_request(mode, index):
     partialBattlelog = parsed["props"]["pageProps"]["replay_list"]
     return partialBattlelog
      
-def send_gas_request(data):
-    log("Starting http request to Google App Scripts")
-    r = requests.post(APP_SCRIPT_URL, json=data)
+def send_gas_request(cfg: Config, data):
+    logger.debug("Starting http request to Google App Scripts")
+    r = requests.post(cfg.app_script_url, json=data)
     if r.status_code == 200:
         if "GAS" in r.text:
-            errorLog(f"Script returned an error: {r.text}")
+            raise KeyError(f"Script returned an error: {r.text}")
         else:
-            log(f"Successful: {r.text}")
+            logger.debug(f"Successful: {r.text}")
     else:
-        errorLog(f"Error occurred during Google App Scripts request: status code {r.status_code}\nError: {r.text}")
+        raise KeyError(f"Error occurred during Google App Scripts request: status code {r.status_code}\nError: {r.text}")
       
-def scrapeMode(mode):
+def scrapeMode(cfg: Config, mode):
     battlelog = []
-    with ThreadPoolExecutor(max_workers=10) as ex:
-        results = list(ex.map(send_sf_request,itertools.repeat(mode), range(1, 11)))
+    with ThreadPoolExecutor(max_workers=cfg.max_workers) as ex:
+        results = list(ex.map(send_sf_request,itertools.repeat(cfg),itertools.repeat(mode), range(1, 11)))
     for bt in results:
         battlelog.extend(bt)
     return battlelog
 
-def scrapeLog(battlelog):    
+def scrapeLog(cfg: Config,battlelog):    
     matches = []
     for match in battlelog:
-        cleanedMatch = parseMatch(match)
+        cleanedMatch = parseMatch(cfg,match)
         matches.append(cleanedMatch)
     return matches
 
-modes = []
-args = sys.argv[1:]
+def setup_config():
+    MODE_CODE = {
+    "ranked" : "/rank",
+    "casual" : "/casual",
+    "custom" : "/custom",
+    "hub" : "/hub",
+    "all" : ""
+}
+    load_dotenv()
+    with open("config.json", "r", encoding="utf-8") as f:
+        config = json.load(f)
+    cfg = Config(
+        user_id=os.getenv("USER_ID"),
+        app_script_url=os.getenv("APP_SCRIPT_URL"),
+        headers={"User-Agent": os.getenv("USER_AGENT")},
+        cookies={"buckler_id": os.getenv("BUCKLER_ID")},
+        mode_code=MODE_CODE,
+        max_workers= config.get("max_requests", 10),
+        debug= config.get("debug", False)
+    )
+    return cfg
 
-if not args:
-    modes = ["all"]
-for arg in args:
-    if arg in mode_code:
-        modes.append(arg)
+def setup_logger(cfg:Config):
+    if cfg.debug:
+        logging.basicConfig(
+        level=getattr(logging, "DEBUG", logging.INFO),
+        format="%(levelname)s %(asctime)s : %(message)s"
+        )
     else:
-        errorLog(f"Error: {arg} not found in the modes")
-        
-log(f"Starting the scraping of the modes:{modes}")    
+        logging.basicConfig(
+        level=getattr(logging, "INFO", logging.INFO),
+        format="%(levelname)s : %(message)s"
+        )              
 
-battlelog = []
-for mode in modes:
-    bt = scrapeMode(mode)
-    battlelog.extend(bt)
+def main():
+    cfg = setup_config()
+    setup_logger(cfg)
     
-log(f"Successful scraping")    
-archive(battlelog)
+    modes = []
+    args = sys.argv[1:]
 
-log("Starting the parsing process...")
-parsed_log= scrapeLog(battlelog)
-log("Successful parsing")
-    
+    if not args:
+        modes = ["all"]
+    for arg in args:
+        if arg in cfg.mode_code:
+            modes.append(arg)
+        else:
+            raise KeyError(f"Error: {arg} not found in the modes")
 
-matches = sorted(parsed_log, key=lambda x: x["uploaded_at"])
+    logger.info(f"Starting the scraping of the modes:{modes}")    
 
-send_gas_request(matches)
+    battlelog = []
+    for mode in modes:
+        bt = scrapeMode(cfg,mode)
+        battlelog.extend(bt)
+
+    logger.info(f"Successful scraping")    
+    archive(cfg,battlelog)
+
+    logger.info("Starting the parsing process...")
+    parsed_log= scrapeLog(cfg, battlelog)
+    logger.info("Successful parsing")
+
+    send_gas_request(cfg,parsed_log)
  
+if __name__ == "__main__":
+    main()
