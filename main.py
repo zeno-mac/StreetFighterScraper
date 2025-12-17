@@ -21,7 +21,9 @@ class Config:
     mode_code: dict[str, str]
     max_workers: int = 10
     debug: bool = False
+    is_debug_archive_enabled: bool = False
     is_archive_enabled: bool = False
+    page_to_scrape: int = 10
     
 
 logger = logging.getLogger(__name__)
@@ -41,7 +43,7 @@ def translateResult(results):
     0 : "L",
     1 : "V",
     2 : "C",
-    3 : "T(?)",
+    3 : "T",
     4 : "D",
     5 : "OD",
     6 : "SA",
@@ -119,10 +121,7 @@ def parseMatch(cfg : Config, match):
         raise KeyError(f"Error occurred during battlelog cleaning: {e}")
     return cleanedMatch
     
-def archive(cfg: Config, battlelog):
-    if not cfg.is_archive_enabled:
-        return
-    path = 'log.json'
+def archive(path, battlelog, key):
     try:
         with open(path, 'r', encoding='utf-8') as f:
             existing = json.load(f)
@@ -131,8 +130,8 @@ def archive(cfg: Config, battlelog):
     except (FileNotFoundError, json.JSONDecodeError):
         existing = []
 
-    existing_keys = {item.get('replay_id') for item in existing if 'replay_id' in item}
-    new_items = [item for item in battlelog if item.get('replay_id') not in existing_keys]
+    existing_keys = {item.get(key) for item in existing if key in item}
+    new_items = [item for item in battlelog if item.get(key) not in existing_keys]
     if not new_items:
         return
 
@@ -140,6 +139,8 @@ def archive(cfg: Config, battlelog):
     existing.sort(key=lambda x: x.get('uploaded_at', 0))
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(existing, f, ensure_ascii=False, indent=2)
+
+
 
 def send_sf_request(cfg: Config, mode, index):
     url = "https://www.streetfighter.com/6/buckler/it/profile/"+cfg.user_id+"/battlelog"+cfg.mode_code[mode]+"?page="+str(index)
@@ -166,7 +167,7 @@ def send_gas_request(cfg: Config, data):
 def scrapeMode(cfg: Config, mode):
     battlelog = []
     with ThreadPoolExecutor(max_workers=cfg.max_workers) as ex:
-        results = list(ex.map(send_sf_request,itertools.repeat(cfg),itertools.repeat(mode), range(1, 11)))
+        results = list(ex.map(send_sf_request,itertools.repeat(cfg),itertools.repeat(mode), range(1, cfg.page_to_scrape +1)))
     for bt in results:
         battlelog.extend(bt)
     return battlelog
@@ -196,7 +197,10 @@ def setup_config():
         cookies={"buckler_id": os.getenv("BUCKLER_ID")},
         mode_code=MODE_CODE,
         max_workers= config.get("max_requests", 10),
-        debug= config.get("debug", False)
+        debug= config.get("debug", False),
+        is_debug_archive_enabled= config.get("is_debug_archive_enabled", False),
+        is_archive_enabled= config.get("is_archive_enabled", False),
+        page_to_scrape= config.get("page_to_scrape", 10),
     )
     return cfg
 
@@ -218,30 +222,38 @@ def main():
     
     modes = []
     args = sys.argv[1:]
+    try:
+        if not args:
+            modes = ["all"]
+        for arg in args:
+            if arg in cfg.mode_code:
+                modes.append(arg)
+            else:
+                raise KeyError(f"Error: {arg} not found in the modes")
 
-    if not args:
-        modes = ["all"]
-    for arg in args:
-        if arg in cfg.mode_code:
-            modes.append(arg)
-        else:
-            raise KeyError(f"Error: {arg} not found in the modes")
+        logger.info(f"Starting the scraping of the modes:{modes}")    
 
-    logger.info(f"Starting the scraping of the modes:{modes}")    
+        battlelog = []
+        for mode in modes:
+            bt = scrapeMode(cfg,mode)
+            battlelog.extend(bt)
 
-    battlelog = []
-    for mode in modes:
-        bt = scrapeMode(cfg,mode)
-        battlelog.extend(bt)
+        logger.info(f"Successful scraping") 
+        print(cfg)   
+        if cfg.is_debug_archive_enabled:
+            logger.info("Archived the full log")
+            archive("debug_log.json",battlelog,"replay_id")
 
-    logger.info(f"Successful scraping")    
-    archive(cfg,battlelog)
+        logger.info("Starting the parsing process...")
+        parsed_log= scrapeLog(cfg, battlelog)
+        logger.info("Successful parsing")
 
-    logger.info("Starting the parsing process...")
-    parsed_log= scrapeLog(cfg, battlelog)
-    logger.info("Successful parsing")
-
-    send_gas_request(cfg,parsed_log)
+        if cfg.is_archive_enabled:
+            archive("log.json",parsed_log, "id")
+            logger.info("Archived the parsed log")
+        send_gas_request(cfg,parsed_log)
+    except Exception as e:
+        print(e)
  
 if __name__ == "__main__":
     main()

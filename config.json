@@ -1,5 +1,7 @@
 {
-    "is_archive_enabled" : false,
+    "is_debug_archive_enabled" : false,
+    "is_archive_enabled": false,
     "max_requests" : 10,
-    "debug" : false
+    "debug" : false,
+    "page_to_scrape": 10
 }
