@@ -14,7 +14,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Config:
-    user_id: str
+    user_code: str
     app_script_url: str
     headers: dict
     cookies: dict
@@ -101,16 +101,16 @@ def parseMatch(cfg : Config, match):
         side = ""
         player1_id = str(match["player1_info"]["player"]["short_id"])
         player2_id = str(match["player2_info"]["player"]["short_id"])
-        if (player1_id==cfg.user_id):
+        if (player1_id==cfg.user_code):
             side = "Left side"
             my_info  = match["player1_info"]
             opp_info = match["player2_info"]
-        elif (player2_id==cfg.user_id):
+        elif (player2_id==cfg.user_code):
             side = "Right side"
             my_info = match["player2_info"]
             opp_info = match["player1_info"]
         else:
-            raise KeyError(f"User_id ({cfg.user_id} not found, player1_id = {player1_id}, player2_id = {player2_id}")
+            raise KeyError(f"User code ({cfg.user_code} not found, player1_id = {player1_id}, player2_id = {player2_id}")
         
         required = ["character_name", "master_rating", "battle_input_type_name","league_point","master_rating_ranking"]
         missing = [k for k in required if k not in my_info]
@@ -143,7 +143,7 @@ def archive(path, battlelog, key):
 
 
 def send_sf_request(cfg: Config, mode, index):
-    url = "https://www.streetfighter.com/6/buckler/it/profile/"+cfg.user_id+"/battlelog"+cfg.mode_code[mode]+"?page="+str(index)
+    url = "https://www.streetfighter.com/6/buckler/it/profile/"+cfg.user_code+"/battlelog"+cfg.mode_code[mode]+"?page="+str(index)
     contents = requests.get(url,headers=cfg.headers,cookies=cfg.cookies)
     if(contents.status_code != 200):
         raise KeyError(f'Error during request to {url} status code {contents.status_code}')
@@ -191,7 +191,7 @@ def setup_config():
     with open("config.json", "r", encoding="utf-8") as f:
         config = json.load(f)
     cfg = Config(
-        user_id=os.getenv("USER_ID"),
+        user_code=os.getenv("USER_CODE"),
         app_script_url=os.getenv("APP_SCRIPT_URL"),
         headers={"User-Agent": os.getenv("USER_AGENT")},
         cookies={"buckler_id": os.getenv("BUCKLER_ID")},
@@ -238,8 +238,7 @@ def main():
             bt = scrapeMode(cfg,mode)
             battlelog.extend(bt)
 
-        logger.info(f"Successful scraping") 
-        print(cfg)   
+        logger.info(f"Successful scraping")   
         if cfg.is_debug_archive_enabled:
             logger.info("Archived the full log")
             archive("debug_log.json",battlelog,"replay_id")
