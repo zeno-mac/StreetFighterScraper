@@ -66,31 +66,31 @@ def fillMatch(match, my_info, opp_info, side):
         my_round.append("")
         opp_round.append("")
     m ={
-        "id": match["replay_id"],
-        "side": side,
-        "uploaded_at" :match["uploaded_at"],
-        "date": datetime.fromtimestamp(match["uploaded_at"]).strftime("%Y-%m-%d %H:%M:%S"),
-        "mode": match["replay_battle_type_name"],
-        "res": checkWin(my_info["round_results"]),
-        "my_character":my_info["character_name"],
-        "my_MR":my_info["master_rating"],
-        "my_input_type":translateInput(my_info["battle_input_type"]),
-        "my_LP":my_info["league_point"],
-        "my_ranking":my_info["master_rating_ranking"],
-        "my_round1":my_round[0],
-        "my_round2":my_round[1],
-        "my_round3":my_round[2],
-        "opp_name": opp_info["player"]["fighter_id"],
-        "opp_id": opp_info["player"]["short_id"],
-        "opp_platform": opp_info["player"]["platform_name"],
-        "opp_round1":opp_round[0],
-        "opp_round2":opp_round[1],
-        "opp_round3":opp_round[2],
-        "opp_character":opp_info["character_name"],
-        "opp_MR":opp_info["master_rating"],
-        "opp_input_type":translateInput(opp_info["battle_input_type"]),
-        "opp_LP":opp_info["league_point"],
-        "opp_ranking":opp_info["master_rating_ranking"],
+        "Id": match["replay_id"],
+        "Side": side,
+        "Uploaded at" :match["uploaded_at"],
+        "Date": datetime.fromtimestamp(match["uploaded_at"]).strftime("%Y-%m-%d %H:%M:%S"),
+        "Mode": match["replay_battle_type_name"],
+        "Result": checkWin(my_info["round_results"]),
+        "My Character":my_info["character_name"],
+        "My MR":my_info["master_rating"],
+        "My Input Type":translateInput(my_info["battle_input_type"]),
+        "My LP":my_info["league_point"],
+        "My Ranking":my_info["master_rating_ranking"],
+        "My Round 1":my_round[0],
+        "My Round 2":my_round[1],
+        "My Round 3":my_round[2],
+        "Opp Name": opp_info["player"]["fighter_id"],
+        "Opp Id": opp_info["player"]["short_id"],
+        "Opp Platform": opp_info["player"]["platform_name"],
+        "Opp Round1":opp_round[0],
+        "Opp Round2":opp_round[1],
+        "Opp Round3":opp_round[2],
+        "Opp Character":opp_info["character_name"],
+        "Opp MR":opp_info["master_rating"],
+        "Opp Input Type":translateInput(opp_info["battle_input_type"]),
+        "Opp LP":opp_info["league_point"],
+        "Opp Ranking":opp_info["master_rating_ranking"],
                 }
     return m
 
@@ -145,7 +145,11 @@ def archive(path, battlelog, key):
 def send_sf_request(cfg: Config, mode, index):
     url = "https://www.streetfighter.com/6/buckler/it/profile/"+cfg.user_code+"/battlelog"+cfg.mode_code[mode]+"?page="+str(index)
     contents = requests.get(url,headers=cfg.headers,cookies=cfg.cookies)
-    if(contents.status_code != 200):
+    if(contents.status_code == 403):
+        raise KeyError(f'Error during request to {url} status code {contents.status_code}, forbidden access, try checking your User Agent or your Buckler ID')
+    elif(contents.status_code == 400):
+        raise KeyError(f'Error during request to {url} status code {contents.status_code}, bad request, try checking your User Code')
+    elif(contents.status_code != 200):
         raise KeyError(f'Error during request to {url} status code {contents.status_code}')
     soup = BeautifulSoup(contents.content, "html.parser")
     next_data = soup.find("script" , id = "__NEXT_DATA__")

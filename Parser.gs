@@ -59,7 +59,7 @@ function fillContent(data) {
   let sheet = SpreadSheet_ID.getSheetByName(config.sheetName)
   headers = makeHeader(sheet, content[0])
   let row = Math.max(2, sheet.getLastRow() - 1)
-  let keys = sheet.getRange(2, headers.safeGet("id") + 1, row, 1).getValues()
+  let keys = sheet.getRange(2, headers.safeGet("Id") + 1, row, 1).getValues()
   str = ""
   let existingIds = new Set()
   let rowsToAdd = new Array()
@@ -69,7 +69,7 @@ function fillContent(data) {
     existingIds.add(keys[i][0])
   }
   content.forEach((match) => {
-    if (existingIds.has(match["id"])) {
+    if (existingIds.has(match["Id"])) {
       return;
     }
     let newRow = new Array(headers.arr.length).fill("")
@@ -91,7 +91,7 @@ function fillContent(data) {
   if (rowsToAdd.length >= 1) {
     sheet.getRange(lastRow + 1, 1, rowsToAdd.length, headers.arr.length).setValues(rowsToAdd)
   }
-  let sortColIndex = headers.arr.indexOf("uploaded_at") + 1;
+  let sortColIndex = headers.arr.indexOf("Uploaded At") + 1;
   sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).sort({ column: sortColIndex, ascending: true });
 }
 
