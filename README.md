@@ -55,10 +55,12 @@ Once you find it copy the value and paste in the "BUCKLER_ID" field. This id mig
 
 ### Python setup
 
-To run the script you need to install [Python](https://www.python.org/downloads/), create a virtual environment (where you'll downloand all the libraries necessary) and then download the library.
+To run the script you need to install [Python](https://www.python.org/downloads/), create a virtual environment (where you'll downloand all the libraries necessary) and then download the library. (I'm not an expert on different python environment, the commands might be a little different based on your OS)
 
 python3 -m venv .venv
+
 source .venv/bin/activate
+
 pip install -r requirements.txt
 
 ## Configuration
