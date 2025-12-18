@@ -46,8 +46,10 @@ In your banner copy the User Code and paste it in the USER_CODE field in the env
 Getting the id for login is a bit more tricky and the exact steps depends on the browser. The goal is to inspect the cookies, and copy the "buckler_id" value.
 
 On Firefox you can go into Storage tab by pressing Shift+F9 (or F12 > Storage) > Cookies.
+![image](img/Firefox_Cookies.png)
 
 On Chrome press F12 > Application tab > Cookies
+![image](img/Chrome_Cookies.png)
 
 Once you are in the Cookies select streetfighter.com section, you'll a few different values, look for "buckler_id" (ignore "buckler_r_id", we
 don't care about that), the value should be a long alphanumeric code.
