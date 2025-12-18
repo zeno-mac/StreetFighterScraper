@@ -3,6 +3,7 @@
 ## Usage
 
 Run the script via Python 'python main.py', with no arguments the program will scrape the last 100 matches of any mode. By adding arguments (ranked , casual, custom, hub) it will scrape only the last 100 matches of that specific modes, it's also possible to to scape multipe modes at once.
+
 E.g. 'python main.py ranked hub' will scrape both the last 100 ranked matches and the last 100 battle hub matches.
 
 ## Setup
