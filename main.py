@@ -164,7 +164,7 @@ def send_gas_request(cfg: Config, data):
         if "GAS" in r.text:
             raise KeyError(f"Script returned an error: {r.text}")
         else:
-            logger.debug(f"Successful: {r.text}")
+            logger.info(f"Successful: {r.text}")
     else:
         raise KeyError(f"Error occurred during Google App Scripts request: status code {r.status_code}\nError: {r.text}")
       

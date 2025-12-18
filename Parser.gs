@@ -76,7 +76,7 @@ function fillContent(data) {
     for (k in match) {
       col = headers.safeGet(k)
       newRow[col] = match[k]
-      existingIds.add(match["id"])
+      existingIds.add(match["Id"])
     }
     rowsToAdd.push(newRow)
   })
@@ -91,14 +91,15 @@ function fillContent(data) {
   if (rowsToAdd.length >= 1) {
     sheet.getRange(lastRow + 1, 1, rowsToAdd.length, headers.arr.length).setValues(rowsToAdd)
   }
-  let sortColIndex = headers.arr.indexOf("Uploaded At") + 1;
+  let sortColIndex = headers.arr.indexOf("Uploaded at") + 1;
   sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).sort({ column: sortColIndex, ascending: true });
+  return rowsToAdd.length
 }
 
 function doPost(e) {
   try {
-    fillContent(e.postData.contents)
-    return ContentService.createTextOutput("ok").setMimeType(ContentService.MimeType.TEXT);
+    let rows = fillContent(e.postData.contents)
+    return ContentService.createTextOutput("Added " + rows + " rows").setMimeType(ContentService.MimeType.TEXT);
   }
   catch (error) {
     return ContentService.createTextOutput("GAS Error: "+error.message).setMimeType(ContentService.MimeType.TEXT);
