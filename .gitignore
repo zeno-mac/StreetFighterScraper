@@ -2,3 +2,5 @@
 *.html
 *.json
 .vscode
+script.py
+.venv
