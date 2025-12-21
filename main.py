@@ -18,7 +18,6 @@ class Config:
     app_script_url: str
     headers: dict
     cookies: dict
-    mode_code: dict[str, str]
     max_workers: int = 10
     debug: bool = False
     is_debug_archive_enabled: bool = False
@@ -28,7 +27,7 @@ class Config:
 class Scraper:
     cfg: Config
     
-    MODE_CODE = {
+    mode_code = {
     "ranked" : "/rank",
     "casual" : "/casual",
     "custom" : "/custom",
@@ -40,7 +39,7 @@ class Scraper:
         self.cfg=cfg_input
         
     def send_sf_request(self,mode, index):
-        url = "https://www.streetfighter.com/6/buckler/it/profile/"+self.cfg.user_code+"/battlelog"+self.cfg.mode_code[mode]+"?page="+str(index)
+        url = "https://www.streetfighter.com/6/buckler/it/profile/"+self.cfg.user_code+"/battlelog"+self.mode_code[mode]+"?page="+str(index)
         contents = requests.get(url,headers=self.cfg.headers,cookies=self.cfg.cookies)
         if(contents.status_code == 403):
             raise KeyError(f'Error during request to {url} status code {contents.status_code}, forbidden access, try checking your User Agent or your Buckler ID')
@@ -59,7 +58,7 @@ class Scraper:
     def scrapeModes(self,modes):
         log = []
         for mode in modes:
-            if mode not in self.MODE_CODE:
+            if mode not in self.mode_code:
                 logger.warning(f"Mode: {mode} not found in mode list")
             else:
                 bt = self.scrapeMode(mode)
@@ -264,13 +263,6 @@ def check_env_requirement():
             
 
 def setup_config():
-    MODE_CODE = {
-    "ranked" : "/rank",
-    "casual" : "/casual",
-    "custom" : "/custom",
-    "hub" : "/hub",
-    "all" : ""
-}
     
     if not os.path.exists(".env"):
         create_interactive_env()
@@ -289,7 +281,6 @@ def setup_config():
         app_script_url=os.getenv("APP_SCRIPT_URL"),
         headers={"User-Agent": os.getenv("USER_AGENT")},
         cookies={"buckler_id": os.getenv("BUCKLER_ID")},
-        mode_code=MODE_CODE,
         max_workers= config.get("max_requests", 10),
         debug= config.get("debug", False),
         is_debug_archive_enabled= config.get("is_debug_archive_enabled", False),
@@ -318,16 +309,12 @@ def main():
     args = sys.argv[1:]
     try:
         if not args:
-            modes = ["all"]
-        for arg in args:
-            if arg in cfg.mode_code:
-                modes.append(arg)
-            else:
-                raise KeyError(f"Error: {arg} not found in the modes")
+            args = ["all"]
+        
 
-        logger.info(f"Starting the scraping of the modes:{modes}") 
+        logger.info(f"Starting the scraping of the modes:{args}") 
         scraper = Scraper(cfg)
-        battlelog = scraper.scrapeModes(modes)
+        battlelog = scraper.scrapeModes(args)
         logger.info(f"Successful scraping")   
         if cfg.is_debug_archive_enabled:
             logger.info("Archived the full log")
