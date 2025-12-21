@@ -10,7 +10,7 @@ import itertools
 import logging
 from dataclasses import dataclass
 
-
+logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class Config:
@@ -24,10 +24,56 @@ class Config:
     is_debug_archive_enabled: bool = False
     is_archive_enabled: bool = False
     page_to_scrape: int = 10
+
+class Scraper:
+    cfg: Config
     
-
-logger = logging.getLogger(__name__)
-
+    MODE_CODE = {
+    "ranked" : "/rank",
+    "casual" : "/casual",
+    "custom" : "/custom",
+    "hub" : "/hub",
+    "all" : ""
+    }
+    
+    def __init__(self,cfg_input:Config):
+        self.cfg=cfg_input
+        
+    def send_sf_request(self,mode, index):
+        url = "https://www.streetfighter.com/6/buckler/it/profile/"+self.cfg.user_code+"/battlelog"+self.cfg.mode_code[mode]+"?page="+str(index)
+        contents = requests.get(url,headers=self.cfg.headers,cookies=self.cfg.cookies)
+        if(contents.status_code == 403):
+            raise KeyError(f'Error during request to {url} status code {contents.status_code}, forbidden access, try checking your User Agent or your Buckler ID')
+        elif(contents.status_code == 400):
+            raise KeyError(f'Error during request to {url} status code {contents.status_code}, bad request, try checking your User Code')
+        elif(contents.status_code != 200):
+            raise KeyError(f'Error during request to {url} status code {contents.status_code}')
+        soup = BeautifulSoup(contents.content, "html.parser")
+        next_data = soup.find("script" , id = "__NEXT_DATA__")
+        parsed = json.loads(next_data.string)
+        partialBattlelog = parsed["props"]["pageProps"].get("replay_list",None)
+        if partialBattlelog is None:
+            raise KeyError(f"Error during request to {url}, no history found, try checking you User Code")
+        return partialBattlelog
+    
+    def scrapeModes(self,modes):
+        log = []
+        for mode in modes:
+            if mode not in self.MODE_CODE:
+                logger.warning(f"Mode: {mode} not found in mode list")
+            else:
+                bt = self.scrapeMode(mode)
+                log.extend(bt)
+        return log
+    
+    def scrapeMode(self,mode):
+        battlelog = []
+        with ThreadPoolExecutor(max_workers=self.cfg.max_workers) as ex:
+            results = list(ex.map(self.send_sf_request,itertools.repeat(mode), range(1, self.cfg.page_to_scrape +1)))
+        for bt in results:
+            battlelog.extend(bt)
+        return battlelog
+    
 
 
 def translateInput(name):
@@ -142,20 +188,7 @@ def archive(path, battlelog, key):
 
 
 
-def send_sf_request(cfg: Config, mode, index):
-    url = "https://www.streetfighter.com/6/buckler/it/profile/"+cfg.user_code+"/battlelog"+cfg.mode_code[mode]+"?page="+str(index)
-    contents = requests.get(url,headers=cfg.headers,cookies=cfg.cookies)
-    if(contents.status_code == 403):
-        raise KeyError(f'Error during request to {url} status code {contents.status_code}, forbidden access, try checking your User Agent or your Buckler ID')
-    elif(contents.status_code == 400):
-        raise KeyError(f'Error during request to {url} status code {contents.status_code}, bad request, try checking your User Code')
-    elif(contents.status_code != 200):
-        raise KeyError(f'Error during request to {url} status code {contents.status_code}')
-    soup = BeautifulSoup(contents.content, "html.parser")
-    next_data = soup.find("script" , id = "__NEXT_DATA__")
-    parsed = json.loads(next_data.string)
-    partialBattlelog = parsed["props"]["pageProps"]["replay_list"]
-    return partialBattlelog
+
      
 def send_gas_request(cfg: Config, data):
     logger.debug("Starting http request to Google App Scripts")
@@ -168,13 +201,7 @@ def send_gas_request(cfg: Config, data):
     else:
         raise KeyError(f"Error occurred during Google App Scripts request: status code {r.status_code}\nError: {r.text}")
       
-def scrapeMode(cfg: Config, mode):
-    battlelog = []
-    with ThreadPoolExecutor(max_workers=cfg.max_workers) as ex:
-        results = list(ex.map(send_sf_request,itertools.repeat(cfg),itertools.repeat(mode), range(1, cfg.page_to_scrape +1)))
-    for bt in results:
-        battlelog.extend(bt)
-    return battlelog
+
 
 def scrapeLog(cfg: Config,battlelog):    
     matches = []
@@ -298,13 +325,9 @@ def main():
             else:
                 raise KeyError(f"Error: {arg} not found in the modes")
 
-        logger.info(f"Starting the scraping of the modes:{modes}")    
-
-        battlelog = []
-        for mode in modes:
-            bt = scrapeMode(cfg,mode)
-            battlelog.extend(bt)
-
+        logger.info(f"Starting the scraping of the modes:{modes}") 
+        scraper = Scraper(cfg)
+        battlelog = scraper.scrapeModes(modes)
         logger.info(f"Successful scraping")   
         if cfg.is_debug_archive_enabled:
             logger.info("Archived the full log")
