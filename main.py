@@ -183,6 +183,59 @@ def scrapeLog(cfg: Config,battlelog):
         matches.append(cleanedMatch)
     return matches
 
+def create_interactive_env():
+    print("\n" + "="*40)
+    print("      FIRST TIME SETUP DETECTED")
+    print("="*40)
+    print("I need a few details to get started.\n")
+
+    user_code = input("1. Enter your SF6 User Code (Short ID): ").strip()
+    
+    print("\n2. Go to streetfighter.com/6/buckler, login, press F12 -> Application -> Cookies.")
+    buckler_id = input("   Paste your 'buckler_id' value here: ").strip()
+    
+    print("\n3. Enter your Google Web App URL.")
+    app_url = input("   URL: ").strip()
+
+    default_ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+    with open(".env", "w", encoding="utf-8") as f:
+        f.write(f"USER_CODE={user_code}\n")
+        f.write(f"BUCKLER_ID={buckler_id}\n")
+        f.write(f"APP_SCRIPT_URL={app_url}\n")
+        f.write(f"USER_AGENT={default_ua}\n")
+    
+    print("\n[+] .env file created successfully!")
+
+def create_default_config():
+    if not os.path.exists("config.json"):
+        default_conf = {
+            "max_requests": 10,
+            "debug": False,
+            "is_debug_archive_enabled": False,
+            "is_archive_enabled": False,
+            "page_to_scrape": 5
+        }
+        with open("config.json", "w", encoding="utf-8") as f:
+            json.dump(default_conf, f, indent=4)
+        print("[+] Default config.json created!")
+
+def check_env_requirement():
+    requirements = ["USER_CODE", "APP_SCRIPT_URL", "USER_AGENT","BUCKLER_ID"]
+    missing = False
+    text = ""
+    for r in requirements:
+        env_r = os.getenv(r)
+        if not env_r:
+            env_r = input(f"It appears {r} is missing, please enter it again:  ").strip()
+            missing = True
+            text += f"{r}={env_r}\n"
+    if missing:
+        with open(".env", "a", encoding="utf-8") as f:
+            f.write(text)
+        load_dotenv(override=True)
+            
+
 def setup_config():
     MODE_CODE = {
     "ranked" : "/rank",
@@ -191,7 +244,17 @@ def setup_config():
     "hub" : "/hub",
     "all" : ""
 }
+    
+    if not os.path.exists(".env"):
+        create_interactive_env()
+    
+    if not os.path.exists(".env"):
+        create_default_config()
+        
     load_dotenv()
+    
+    check_env_requirement()
+    
     with open("config.json", "r", encoding="utf-8") as f:
         config = json.load(f)
     cfg = Config(
