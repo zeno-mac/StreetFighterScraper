@@ -39,7 +39,7 @@ class Scraper:
         self.cfg=cfg_input
         
     def send_sf_request(self,mode, index):
-        url = "https://www.streetfighter.com/6/buckler/it/profile/"+self.cfg.user_code+"/battlelog"+self.mode_code[mode]+"?page="+str(index)
+        url = f"https://www.streetfighter.com/6/buckler/_next/data/nF57DUCh4rD4GPO7pdcWz/it/profile/4167571199/battlelog{self.mode_code[mode]}.json?page={index}&sid={self.cfg.user_code}"
         contents = requests.get(url,headers=self.cfg.headers,cookies=self.cfg.cookies)
         if(contents.status_code == 403):
             raise KeyError(f'Error during request to {url} status code {contents.status_code}, forbidden access, try checking your User Agent or your Buckler ID')
@@ -47,10 +47,8 @@ class Scraper:
             raise KeyError(f'Error during request to {url} status code {contents.status_code}, bad request, try checking your User Code')
         elif(contents.status_code != 200):
             raise KeyError(f'Error during request to {url} status code {contents.status_code}')
-        soup = BeautifulSoup(contents.content, "html.parser")
-        next_data = soup.find("script" , id = "__NEXT_DATA__")
-        parsed = json.loads(next_data.string)
-        partialBattlelog = parsed["props"]["pageProps"].get("replay_list",None)
+        parsed = json.loads(contents.content)
+        partialBattlelog = parsed["pageProps"].get("replay_list",None)
         if partialBattlelog is None:
             raise KeyError(f"Error during request to {url}, no history found, try checking you User Code")
         return partialBattlelog
@@ -74,98 +72,111 @@ class Scraper:
         return battlelog
     
 
-
-def translateInput(name):
-    if name == 1:
-        return "Classic"
-    elif name == 0:
-        return "Modern"
-    else:
-        raise Exception(f"{name} not in found in input types")
-
-def translateResult(results):
-    table = {
-    0 : "L",
-    1 : "V",
-    2 : "C",
-    3 : "T",
-    4 : "D",
-    5 : "OD",
-    6 : "SA",
-    7 : "CA",
-    8 : "P"
-    }
-    res = []
-    for i in results:
-        r = table.get(i,"")
-        res.append(r)
-    return res
-
-def checkWin(results):
-    return "L" if (results.count(0) == 2) else "W"
-        
-def fillMatch(match, my_info, opp_info, side):
-    my_round = translateResult(my_info["round_results"])
-    opp_round = translateResult(opp_info["round_results"])
-    if len(my_round) == 2:
-        my_round.append("")
-        opp_round.append("")
-    m ={
-        "Id": match["replay_id"],
-        "Side": side,
-        "Uploaded at" :match["uploaded_at"],
-        "Date": datetime.fromtimestamp(match["uploaded_at"]).strftime("%Y-%m-%d %H:%M:%S"),
-        "Mode": match["replay_battle_type_name"],
-        "Result": checkWin(my_info["round_results"]),
-        "My Character":my_info["character_name"],
-        "My MR":my_info["master_rating"],
-        "My Input Type":translateInput(my_info["battle_input_type"]),
-        "My LP":my_info["league_point"],
-        "My Ranking":my_info["master_rating_ranking"],
-        "My Round 1":my_round[0],
-        "My Round 2":my_round[1],
-        "My Round 3":my_round[2],
-        "Opp Name": opp_info["player"]["fighter_id"],
-        "Opp Id": opp_info["player"]["short_id"],
-        "Opp Platform": opp_info["player"]["platform_name"],
-        "Opp Round1":opp_round[0],
-        "Opp Round2":opp_round[1],
-        "Opp Round3":opp_round[2],
-        "Opp Character":opp_info["character_name"],
-        "Opp MR":opp_info["master_rating"],
-        "Opp Input Type":translateInput(opp_info["battle_input_type"]),
-        "Opp LP":opp_info["league_point"],
-        "Opp Ranking":opp_info["master_rating_ranking"],
-                }
-    return m
-
-def parseMatch(cfg : Config, match):
-    if "replay_id" not in match or "uploaded_at" not in match:
-            raise KeyError(f"Missing replay_id or uploaded_at in match: {match.get('replay_id')}")
-    try:
-        side = ""
-        player1_id = str(match["player1_info"]["player"]["short_id"])
-        player2_id = str(match["player2_info"]["player"]["short_id"])
-        if (player1_id==cfg.user_code):
-            side = "Left side"
-            my_info  = match["player1_info"]
-            opp_info = match["player2_info"]
-        elif (player2_id==cfg.user_code):
-            side = "Right side"
-            my_info = match["player2_info"]
-            opp_info = match["player1_info"]
-        else:
-            raise KeyError(f"User code ({cfg.user_code} not found, player1_id = {player1_id}, player2_id = {player2_id}")
-        
-        required = ["character_name", "master_rating", "battle_input_type_name","league_point","master_rating_ranking"]
-        missing = [k for k in required if k not in my_info]
-        if missing:
-            raise KeyError(f"Missing keys in player info: {missing}")
-        cleanedMatch = fillMatch(match, my_info, opp_info, side)
-    except  Exception as e:
-        raise KeyError(f"Error occurred during battlelog cleaning: {e}")
-    return cleanedMatch
+class Parser:
     
+    cfg: Config
+    
+    def __init__(self,cfg_input:Config):
+        self.cfg=cfg_input
+        
+    def translate_input(self,name):
+        if name == 1:
+            return "Classic"
+        elif name == 0:
+            return "Modern"
+        else:
+            raise Exception(f"{name} not in found in input types")
+
+    def translate_result(self, results):
+        table = {
+        0 : "L",
+        1 : "V",
+        2 : "C",
+        3 : "T",
+        4 : "D",
+        5 : "OD",
+        6 : "SA",
+        7 : "CA",
+        8 : "P"
+        }
+        res = []
+        for i in results:
+            r = table.get(i,"")
+            res.append(r)
+        return res
+
+    def checkWin(self, results):
+        return "L" if (results.count(0) == 2) else "W"
+
+    def fillMatch(self,match, my_info, opp_info, side):
+        my_round = self.translate_result(my_info["round_results"])
+        opp_round = self.translate_result(opp_info["round_results"])
+        if len(my_round) == 2:
+            my_round.append("")
+            opp_round.append("")
+        m ={
+            "Id": match["replay_id"],
+            "Side": side,
+            "Uploaded at" :match["uploaded_at"],
+            "Date": datetime.fromtimestamp(match["uploaded_at"]).strftime("%Y-%m-%d %H:%M:%S"),
+            "Mode": match["replay_battle_type_name"],
+            "Result": self.checkWin(my_info["round_results"]),
+            "My Character":my_info["character_name"],
+            "My MR":my_info["master_rating"],
+            "My Input Type":self.translate_input(my_info["battle_input_type"]),
+            "My LP":my_info["league_point"],
+            "My Ranking":my_info["master_rating_ranking"],
+            "My Round 1":my_round[0],
+            "My Round 2":my_round[1],
+            "My Round 3":my_round[2],
+            "Opp Name": opp_info["player"]["fighter_id"],
+            "Opp Id": opp_info["player"]["short_id"],
+            "Opp Platform": opp_info["player"]["platform_name"],
+            "Opp Round1":opp_round[0],
+            "Opp Round2":opp_round[1],
+            "Opp Round3":opp_round[2],
+            "Opp Character":opp_info["character_name"],
+            "Opp MR":opp_info["master_rating"],
+            "Opp Input Type":self.translate_input(opp_info["battle_input_type"]),
+            "Opp LP":opp_info["league_point"],
+            "Opp Ranking":opp_info["master_rating_ranking"],
+                    }
+        return m
+
+    def parseMatch(self, match):
+        if "replay_id" not in match or "uploaded_at" not in match:
+                raise KeyError(f"Missing replay_id or uploaded_at in match: {match.get('replay_id')}")
+        try:
+            side = ""
+            player1_id = str(match["player1_info"]["player"]["short_id"])
+            player2_id = str(match["player2_info"]["player"]["short_id"])
+            if (player1_id==self.cfg.user_code):
+                side = "Left side"
+                my_info  = match["player1_info"]
+                opp_info = match["player2_info"]
+            elif (player2_id==self.cfg.user_code):
+                side = "Right side"
+                my_info = match["player2_info"]
+                opp_info = match["player1_info"]
+            else:
+                raise KeyError(f"User code ({self.cfg.user_code} not found, player1_id = {player1_id}, player2_id = {player2_id}")
+
+            required = ["character_name", "master_rating", "battle_input_type_name","league_point","master_rating_ranking"]
+            missing = [k for k in required if k not in my_info]
+            if missing:
+                raise KeyError(f"Missing keys in player info: {missing}")
+            cleanedMatch = self.fillMatch(match, my_info, opp_info, side)
+        except  Exception as e:
+            raise KeyError(f"Error occurred during battlelog cleaning: {e}")
+        return cleanedMatch
+    
+    def parse_log(self,battlelog):    
+        matches = []
+        for match in battlelog:
+            cleanedMatch = self.parseMatch(match)
+            matches.append(cleanedMatch)
+        return matches
+
 def archive(path, battlelog, key):
     try:
         with open(path, 'r', encoding='utf-8') as f:
@@ -174,12 +185,10 @@ def archive(path, battlelog, key):
                 existing = []
     except (FileNotFoundError, json.JSONDecodeError):
         existing = []
-
     existing_keys = {item.get(key) for item in existing if key in item}
     new_items = [item for item in battlelog if item.get(key) not in existing_keys]
     if not new_items:
         return
-
     existing.extend(new_items)
     existing.sort(key=lambda x: x.get('uploaded_at', 0))
     with open(path, 'w', encoding='utf-8') as f:
@@ -188,7 +197,6 @@ def archive(path, battlelog, key):
 
 
 
-     
 def send_gas_request(cfg: Config, data):
     logger.debug("Starting http request to Google App Scripts")
     r = requests.post(cfg.app_script_url, json=data)
@@ -196,18 +204,13 @@ def send_gas_request(cfg: Config, data):
         if "GAS" in r.text:
             raise KeyError(f"Script returned an error: {r.text}")
         else:
-            logger.info(f"Successful Google App Script request: {r.text}")
+            return r.text
     else:
         raise KeyError(f"Error occurred during Google App Scripts request: status code {r.status_code}\nError: {r.text}")
-      
 
 
-def scrapeLog(cfg: Config,battlelog):    
-    matches = []
-    for match in battlelog:
-        cleanedMatch = parseMatch(cfg,match)
-        matches.append(cleanedMatch)
-    return matches
+
+    
 
 def create_interactive_env():
     print("\n" + "="*40)
@@ -310,9 +313,7 @@ def main():
     try:
         if not args:
             args = ["all"]
-        
-
-        logger.info(f"Starting the scraping of the modes:{args}") 
+        logger.info(f"Starting the scraping of the modes: {args}") 
         scraper = Scraper(cfg)
         battlelog = scraper.scrapeModes(args)
         logger.info(f"Successful scraping")   
@@ -320,14 +321,19 @@ def main():
             logger.info("Archived the full log")
             archive("debug_log.json",battlelog,"replay_id")
 
+        parser = Parser(cfg)
         logger.info("Starting the parsing process...")
-        parsed_log= scrapeLog(cfg, battlelog)
+        parsed_log= parser.parse_log(battlelog)
         logger.info("Successful parsing")
 
         if cfg.is_archive_enabled:
             archive("log.json",parsed_log, "id")
             logger.info("Archived the parsed log")
-        send_gas_request(cfg,parsed_log)
+        
+        
+        logger.info("Sending data to Google Sheets...")
+        res = send_gas_request(cfg,parsed_log)
+        logger.info(f"Successful Google App Script request: {res}")
     except Exception as e:
         print(e)
  
