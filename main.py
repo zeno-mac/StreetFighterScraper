@@ -1,5 +1,4 @@
 import requests
-from bs4 import BeautifulSoup
 import json
 from dotenv import load_dotenv
 import os
@@ -71,7 +70,6 @@ class Scraper:
             battlelog.extend(bt)
         return battlelog
     
-
 class Parser:
     
     cfg: Config
@@ -208,10 +206,6 @@ def send_gas_request(cfg: Config, data):
     else:
         raise KeyError(f"Error occurred during Google App Scripts request: status code {r.status_code}\nError: {r.text}")
 
-
-
-    
-
 def create_interactive_env():
     print("\n" + "="*40)
     print("      FIRST TIME SETUP DETECTED")
@@ -308,7 +302,6 @@ def main():
     cfg = setup_config()
     setup_logger(cfg)
     
-    modes = []
     args = sys.argv[1:]
     try:
         if not args:
