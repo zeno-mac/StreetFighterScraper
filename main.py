@@ -1,6 +1,6 @@
 import requests
-from bs4 import BeautifulSoup
 import json
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 import os
 from datetime import datetime
@@ -39,7 +39,7 @@ class Scraper:
         self.cfg=cfg_input
         
     def send_sf_request(self,mode, index):
-        url = f"https://www.streetfighter.com/6/buckler/_next/data/nF57DUCh4rD4GPO7pdcWz/it/profile/4167571199/battlelog{self.mode_code[mode]}.json?page={index}&sid={self.cfg.user_code}"
+        url = "https://www.streetfighter.com/6/buckler/it/profile/"+self.cfg.user_code+"/battlelog"+self.mode_code[mode]+"?page="+str(index)
         contents = requests.get(url,headers=self.cfg.headers,cookies=self.cfg.cookies)
         if(contents.status_code == 403):
             raise KeyError(f'Error during request to {url} status code {contents.status_code}, forbidden access, try checking your User Agent or your Buckler ID')
@@ -47,8 +47,10 @@ class Scraper:
             raise KeyError(f'Error during request to {url} status code {contents.status_code}, bad request, try checking your User Code')
         elif(contents.status_code != 200):
             raise KeyError(f'Error during request to {url} status code {contents.status_code}')
-        parsed = json.loads(contents.content)
-        partialBattlelog = parsed["pageProps"].get("replay_list",None)
+        soup = BeautifulSoup(contents.content, "html.parser")
+        next_data = soup.find("script" , id = "__NEXT_DATA__")
+        parsed = json.loads(next_data.string)
+        partialBattlelog = parsed["props"]["pageProps"].get("replay_list",None)
         if partialBattlelog is None:
             raise KeyError(f"Error during request to {url}, no history found, try checking you User Code")
         return partialBattlelog
@@ -71,7 +73,6 @@ class Scraper:
             battlelog.extend(bt)
         return battlelog
     
-
 class Parser:
     
     cfg: Config
@@ -208,10 +209,6 @@ def send_gas_request(cfg: Config, data):
     else:
         raise KeyError(f"Error occurred during Google App Scripts request: status code {r.status_code}\nError: {r.text}")
 
-
-
-    
-
 def create_interactive_env():
     print("\n" + "="*40)
     print("      FIRST TIME SETUP DETECTED")
@@ -308,7 +305,6 @@ def main():
     cfg = setup_config()
     setup_logger(cfg)
     
-    modes = []
     args = sys.argv[1:]
     try:
         if not args:

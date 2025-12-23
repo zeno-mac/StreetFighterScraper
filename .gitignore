@@ -4,3 +4,6 @@
 .vscode
 script.py
 .venv
+build
+dist
+*.spec
