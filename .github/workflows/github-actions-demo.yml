@@ -1,0 +1,57 @@
+name: Build binaries
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+        python-version: ['3.13']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix['python-version'] }}
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r [requirements.txt](http://_vscodecontentref_/1)
+          pip install pyinstaller
+
+      - name: Build (PyInstaller)
+        run: |
+          pyinstaller [capcom_scraper.spec](http://_vscodecontentref_/2)
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: capcom_scraper-${{ runner.os }}
+          path: dist/**
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: capcom_scraper-ubuntu
+          path: artifacts/linux
+      - uses: actions/download-artifact@v4
+        with:
+          name: capcom_scraper-Windows
+          path: artifacts/windows
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/linux/**
+            artifacts/windows/**
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
