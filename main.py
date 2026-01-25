@@ -88,6 +88,58 @@ class Parser:
         else:
             raise Exception(f"{name} not in found in input types")
 
+    def get_rank(self, LP, MR):
+        ranks = [
+        {"threshold": 25000, "label": "Master"},
+        {"threshold": 23800, "label": "Diamond 5"},
+        {"threshold": 22600, "label": "Diamond 4"},
+        {"threshold": 21400, "label": "Diamond 3"},
+        {"threshold": 20200, "label": "Diamond 2"},
+        {"threshold": 19000, "label": "Diamond 1"},
+        {"threshold": 17800, "label": "Platinum 5"},
+        {"threshold": 16600, "label": "Platinum 4"},
+        {"threshold": 15400, "label": "Platinum 3"},
+        {"threshold": 14200, "label": "Platinum 2"},
+        {"threshold": 13000, "label": "Platinum 1"},
+        {"threshold": 12200, "label": "Gold 5"},
+        {"threshold": 11400, "label": "Gold 4"},
+        {"threshold": 10600, "label": "Gold 3"},
+        {"threshold": 9800,  "label": "Gold 2"},
+        {"threshold": 9000,  "label": "Gold 1"},
+        {"threshold": 8200,  "label": "Silver 5"},
+        {"threshold": 7400,  "label": "Silver 4"},
+        {"threshold": 6600,  "label": "Silver 3"},
+        {"threshold": 5800,  "label": "Silver 2"},
+        {"threshold": 5000,  "label": "Silver 1"},
+        {"threshold": 4600,  "label": "Bronze 5"},
+        {"threshold": 4200,  "label": "Bronze 4"},
+        {"threshold": 3800,  "label": "Bronze 3"},
+        {"threshold": 3400,  "label": "Bronze 2"},
+        {"threshold": 3000,  "label": "Bronze 1"},
+        {"threshold": 2600,  "label": "Iron 5"},
+        {"threshold": 2200,  "label": "Iron 4"},
+        {"threshold": 1800,  "label": "Iron 3"},
+        {"threshold": 1400,  "label": "Iron 2"},
+        {"threshold": 1000,  "label": "Iron 1"},
+        {"threshold": 800,   "label": "Rookie 5"},
+        {"threshold": 600,   "label": "Rookie 4"},
+        {"threshold": 400,   "label": "Rookie 3"},
+        {"threshold": 200,   "label": "Rookie 2"},
+        {"threshold": 0,     "label": "Rookie 1"},]
+
+        if MR > 0:
+            if MR > 1800:
+                return "Ultimate Master"
+            elif MR > 1700:
+                return "Grand Master"
+            elif MR > 1600:
+                return "High Master"
+            else:
+                return "Master"
+            
+        rank_obj = next((r for r in ranks if LP >= r["threshold"]), None)
+        return rank_obj["label"] if rank_obj else None
+    
     def translate_result(self, results):
         table = {
         0 : "L",
@@ -127,6 +179,7 @@ class Parser:
             "My Input Type":self.translate_input(my_info["battle_input_type"]),
             "My LP":my_info["league_point"],
             "My Ranking":my_info["master_rating_ranking"],
+            "My Rank": self.get_rank(my_info["league_point"],my_info["master_rating"]),
             "My Round 1":my_round[0],
             "My Round 2":my_round[1],
             "My Round 3":my_round[2],
@@ -140,6 +193,7 @@ class Parser:
             "Opp MR":opp_info["master_rating"],
             "Opp Input Type":self.translate_input(opp_info["battle_input_type"]),
             "Opp LP":opp_info["league_point"],
+            "Opp Rank": self.get_rank(opp_info["league_point"],opp_info["master_rating"]),
             "Opp Ranking":opp_info["master_rating_ranking"],
                     }
         return m
@@ -194,8 +248,6 @@ def archive(path, battlelog, key):
     existing.sort(key=lambda x: x.get('uploaded_at', 0))
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(existing, f, ensure_ascii=False, indent=2)
-
-
 
 
 def send_gas_request(cfg: Config, data):
@@ -261,7 +313,6 @@ def check_env_requirement():
             f.write(text)
         load_dotenv(override=True)
             
-
 def setup_config():
     
     if not os.path.exists(".env"):
