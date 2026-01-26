@@ -374,7 +374,7 @@ def main():
         logger.info("Successful parsing")
 
         if cfg.is_archive_enabled:
-            archive("log.json",parsed_log, "id")
+            archive("log.json",parsed_log, "Id")
             logger.info("Archived the parsed log")
         
         
