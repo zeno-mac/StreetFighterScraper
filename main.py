@@ -81,9 +81,9 @@ class Parser:
         self.cfg=cfg_input
         
     def translate_input(self,name):
-        if name == 1:
+        if name == 0:
             return "Classic"
-        elif name == 0:
+        elif name == 1:
             return "Modern"
         else:
             raise Exception(f"{name} not in found in input types")
