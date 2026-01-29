@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
-@dataclass(frozen=True)
+@dataclass
 class Config:
     user_code: str
     app_script_url: str
@@ -34,7 +34,10 @@ class Scraper:
     "hub" : "/hub",
     "all" : ""
     }
-    
+    class AuthenticationError(Exception):
+        """Raised when authentication fails (403 status code)"""
+        pass
+
     def __init__(self,cfg_input:Config):
         self.cfg=cfg_input
         
@@ -42,7 +45,7 @@ class Scraper:
         url = "https://www.streetfighter.com/6/buckler/it/profile/"+self.cfg.user_code+"/battlelog"+self.mode_code[mode]+"?page="+str(index)
         contents = requests.get(url,headers=self.cfg.headers,cookies=self.cfg.cookies)
         if(contents.status_code == 403):
-            raise KeyError(f'Error during request to {url} status code {contents.status_code}, forbidden access, try checking your User Agent or your Buckler ID')
+            raise self.AuthenticationError(f'Error during request to {url} status code {contents.status_code}, forbidden access, try checking your User Agent or your Buckler ID')
         elif(contents.status_code == 400):
             raise KeyError(f'Error during request to {url} status code {contents.status_code}, bad request, try checking your User Code')
         elif(contents.status_code != 200):
@@ -55,8 +58,38 @@ class Scraper:
             raise KeyError(f"Error during request to {url}, no history found, try checking you User Code")
         return partialBattlelog
     
+    def updateID(self):
+        new_buckler_id = input("It seems the Buckler ID is no longer valid, please provide the new one:").strip()
+    
+        env_lines = []
+        buckler_updated = False
+
+        with open(".env", "r", encoding="utf-8") as f:
+            env_lines = f.readlines()
+        for i, line in enumerate(env_lines):
+            if line.strip().startswith("BUCKLER_ID="):
+                env_lines[i] = f"BUCKLER_ID={new_buckler_id}\n"
+                buckler_updated = True
+                break
+            
+        if not buckler_updated:
+            env_lines.append(f"BUCKLER_ID={new_buckler_id}\n")
+        try:
+            with open(".env", "w", encoding="utf-8") as f:
+                f.writelines(env_lines)
+            self.cfg.cookies["buckler_id"] = new_buckler_id
+            print("[+] Buckler ID updated successfully!")
+        except Exception as e:
+            print(f"Error writing to .env file: {e}")
+        
     def scrapeModes(self,modes):
         log = []
+        while(True):
+            try:
+                self.send_sf_request("all", 0)
+                break
+            except self.AuthenticationError as e:
+                self.updateID()
         for mode in modes:
             if mode not in self.mode_code:
                 logger.warning(f"Mode: {mode} not found in mode list")
@@ -242,6 +275,7 @@ def archive(path, battlelog, key):
         existing = []
     existing_keys = {item.get(key) for item in existing if key in item}
     new_items = [item for item in battlelog if item.get(key) not in existing_keys]
+    logger.debug(f"Number of item in {path}: {len(existing)}")
     if not new_items:
         return
     existing.extend(new_items)
@@ -377,10 +411,10 @@ def main():
             archive("log.json",parsed_log, "Id")
             logger.info("Archived the parsed log")
         
-        
         logger.info("Sending data to Google Sheets...")
         res = send_gas_request(cfg,parsed_log)
         logger.info(f"Successful Google App Script request: {res}")
+        input("Press any key to exit")
     except Exception as e:
         print(e)
  
