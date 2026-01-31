@@ -326,7 +326,7 @@ def create_default_config():
             "debug": False,
             "is_debug_archive_enabled": False,
             "is_archive_enabled": False,
-            "page_to_scrape": 5
+            "page_to_scrape": 10
         }
         with open("config.json", "w", encoding="utf-8") as f:
             json.dump(default_conf, f, indent=4)
@@ -352,7 +352,7 @@ def setup_config():
     if not os.path.exists(".env"):
         create_interactive_env()
     
-    if not os.path.exists(".env"):
+    if not os.path.exists("config.json"):
         create_default_config()
         
     load_dotenv()
@@ -391,32 +391,37 @@ def main():
     setup_logger(cfg)
     
     args = sys.argv[1:]
-    try:
-        if not args:
-            args = ["all"]
-        logger.info(f"Starting the scraping of the modes: {args}") 
-        scraper = Scraper(cfg)
-        battlelog = scraper.scrapeModes(args)
-        logger.info(f"Successful scraping")   
-        if cfg.is_debug_archive_enabled:
-            logger.info("Archived the full log")
-            archive("debug_log.json",battlelog,"replay_id")
+    cont = True
+    while(cont):
+        try:
+            if not args:
+                args = ["all"]
+            logger.info(f"Starting the scraping of the modes: {args}") 
+            scraper = Scraper(cfg)
+            battlelog = scraper.scrapeModes(args)
+            logger.info(f"Successful scraping")   
+            if cfg.is_debug_archive_enabled:
+                logger.info("Archived the full log")
+                archive("debug_log.json",battlelog,"replay_id")
 
-        parser = Parser(cfg)
-        logger.info("Starting the parsing process...")
-        parsed_log= parser.parse_log(battlelog)
-        logger.info("Successful parsing")
+            parser = Parser(cfg)
+            logger.info("Starting the parsing process...")
+            parsed_log= parser.parse_log(battlelog)
+            logger.info("Successful parsing")
 
-        if cfg.is_archive_enabled:
-            archive("log.json",parsed_log, "Id")
-            logger.info("Archived the parsed log")
-        
-        logger.info("Sending data to Google Sheets...")
-        res = send_gas_request(cfg,parsed_log)
-        logger.info(f"Successful Google App Script request: {res}")
-        input("Press any key to exit")
-    except Exception as e:
-        print(e)
+            if cfg.is_archive_enabled:
+                archive("log.json",parsed_log, "Id")
+                logger.info("Archived the parsed log")
+
+            logger.info("Sending data to Google Sheets...")
+            res = send_gas_request(cfg,parsed_log)
+            logger.info(f"Successful Google App Script request: {res}")
+            sys.stdout.flush()
+            i = input("Do you want to scrape again? [y]/n").strip()
+            if i == "n" or i == "no":
+                cont = False 
+        except Exception as e:
+            print(e)
  
 if __name__ == "__main__":
     main()
